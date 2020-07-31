@@ -1,0 +1,192 @@
+﻿@using DataTable
+@typeparam T
+@inherits DataTableComponentBase<T>
+
+@if (Items != null && Items.Any())
+{
+    <div class="row mb-2">
+        <div class="col-md-4">
+            <p class="mb-0 mt-1 mr-2 float-left">Show</p>
+            <select @onchange="UpdatePageSize" class="form-control w-50">
+                <option value="10">10 items</option>
+                <option value="25">25 items</option>
+                <option value="50">50 items</option>
+                <option value="100">100 items</option>
+            </select>
+        </div>
+        <div class="col-md-4"></div>
+        <div class="col-md-4">
+            <input type="text" @bind-value="SearchTerm" @bind-value:event="oninput" @onkeyup="Search" placeholder="Search..." class="form-control" />
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    @foreach (var header in DataTableModel.Headers)
+                    {
+                        <th @onclick="() => Sort(header.SortBy)">
+                            <span class="mr-2">@header.Header</span>
+                            <div class="row float-right">
+                                <div class="col-md-12 px-0 d-flex">
+                                    <span class="oi oi-caret-top header-sort @(CurrentSortOrder.Equals("desc") ? SortIndicator(header.SortBy) : "")"></span>
+                                </div>
+                                <div class="col-md-12 px-0 d-flex">
+                                    <span class="oi oi-caret-bottom header-sort @(CurrentSortOrder.Equals("asc") ? SortIndicator(header.SortBy) : "")"></span>
+                                </div>
+                            </div>
+                        </th>
+                    }
+                    @TableHeader
+                </tr>
+            </thead>
+            <tbody>
+                @if (SortedItems.Any())
+                {
+                    @foreach (var item in SortedItems)
+                    {
+                        @TableBody(item)
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td>No items to show</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+} <div class="d-flex">
+    @if (DataTableModel != null)
+    {
+        <div class="mx-auto my-3 pager">
+            <button type="button" class="btn btn-primary btn-sm @((PageIndex == 1) ? "d-none" : null)" @onclick="@(() => PageIndexChanged(1))">
+                First
+            </button>
+            <button type="button" class="btn btn-primary btn-sm @(DataTableModel.HasPreviousPage ? null : "d-none")" @onclick="@(() => PageIndexChanged(PageIndex - 1))">
+                <i class="oi oi-caret-left"></i>
+            </button>
+            @if (PageIndex != 1)
+            {
+                <button type="button" class="btn btn-primary btn-sm" @onclick="@(() => PageIndexChanged(PageIndex - 1))">
+                    @(PageIndex - 1)
+                </button>
+            }
+
+            <button type="button" class="btn btn-dark btn-sm">
+                @(PageIndex)
+            </button>
+
+            @if (PageIndex != DataTableModel.TotalPages)
+            {
+                <button type="button" class="btn btn-primary btn-sm" @onclick="@(() => PageIndexChanged(PageIndex + 1))">
+                    @(PageIndex + 1)
+                </button>
+            }
+            <button type="button" class="btn btn-primary btn-sm @(DataTableModel.HasNextPage ? null : "d-none")" @onclick="@(() => PageIndexChanged(PageIndex + 1))">
+                <i class="oi oi-caret-right"></i>
+            </button>
+            <button type="button" class="btn btn-primary btn-sm @((PageIndex == DataTableModel.TotalPages) ? "d-none" : null)" @onclick="@(() => PageIndexChanged(DataTableModel.TotalPages))">
+                Last
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public RenderFragment<T> TableBody { get; set; }
+    [Parameter]
+    public RenderFragment TableHeader { get; set; }
+    [Parameter]
+    public List<T> Items { get; set; }
+    private DataTableModel<T> DataTableModel { get; set; }
+    private List<T> SortedItems { get; set; }
+    private List<T> TempItems { get; set; }
+    private string CurrentSortField { get; set; }
+    private string CurrentSortOrder = "asc";
+    private int PageIndex = 1;
+    private string SearchTerm { get; set; }
+    private int TempSearchTerm = 0;
+    private int PageSize = 2;
+
+    protected override void OnParametersSet()
+    {
+        GetData();
+    }
+
+    private void GetData()
+    {
+        DataTableModel = Create(TempItems == null ? Items : TempItems, PageIndex, PageSize);
+        SortedItems = DataTableModel.Items;
+
+        StateHasChanged();
+    }
+
+    private void UpdatePageSize(ChangeEventArgs e)
+    {
+        PageSize = int.Parse(e.Value.ToString());
+        GetData();
+    }
+
+    private void PageIndexChanged(int newPageNumber)
+    {
+        if (newPageNumber < 1 || newPageNumber > DataTableModel.TotalPages)
+        {
+            return;
+        }
+        PageIndex = newPageNumber;
+        GetData();
+    }
+
+    private string SortIndicator(string sortField)
+    {
+        if (sortField.Equals(CurrentSortField))
+            return "active";
+        return string.Empty;
+    }
+
+    private async Task Sort(string sortField)
+    {
+        if (sortField.Equals(CurrentSortField))
+        {
+            CurrentSortOrder = CurrentSortOrder.Equals("asc") ? "desc" : "asc";
+        }
+        else
+        {
+            CurrentSortField = sortField;
+            CurrentSortOrder = "asc";
+        }
+
+        TempItems = await Sort(TempItems == null ? Items : TempItems, CurrentSortField, CurrentSortOrder);
+
+        GetData();
+    }
+
+    public async Task Search()
+    {
+        if (string.IsNullOrEmpty(SearchTerm))
+        {
+            TempItems = null;
+            TempSearchTerm = 0;
+            GetData();
+            CurrentSortOrder = "asc";
+            return;
+        }
+
+        if (TempSearchTerm > SearchTerm.Length)
+        {
+            TempItems = await Search(Items, SearchTerm);
+            CurrentSortOrder = "asc";
+        }
+        else
+        {
+            TempItems = await Search(TempItems == null ? Items : TempItems, SearchTerm);
+        }
+
+        TempSearchTerm = SearchTerm.Length;
+
+        GetData();
+    }
+}

@@ -1,0 +1,40 @@
+@page "/fetchdata"
+@using BlazorDataTable.Shared
+@using BlazorDataTable.Client.DataTable
+@inject HttpClient Http
+
+<h1>Weather forecast</h1>
+
+<p>This component demonstrates fetching data from the server.</p>
+
+@if (forecasts == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <DataTable Items="forecasts.ToList()">
+        <TableHeader>
+            <th>Action</th>
+        </TableHeader>
+        <TableBody>
+            <tr>
+                <td>@context.Date.ToShortDateString()</td>
+                <td>@context.TemperatureC</td>
+                <td>@context.TemperatureF</td>
+                <td>@context.Summary</td>
+                <td><a href=""><span class="oi oi-pencil text-primary"></span></a></td>
+            </tr>
+        </TableBody>
+    </DataTable>
+}
+
+@code {
+    private WeatherForecast[] forecasts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        forecasts = await Http.GetFromJsonAsync<WeatherForecast[]>("WeatherForecast");
+    }
+
+}
